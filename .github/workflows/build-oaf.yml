@@ -118,6 +118,35 @@ jobs:
           echo "=== ALL ipk files under bin/ ==="
           find bin -name '*.ipk' | sort
 
+      - name: Ensure luci-i18n-oaf-zh-cn ipk (manual fallback if luci.mk skipped it)
+        run: |
+          if find openwrt/bin -name 'luci-i18n-oaf*.ipk' | grep -q .; then
+            echo "luci-i18n-oaf-zh-cn already built by luci.mk."
+          else
+            echo "luci.i18n-oaf-zh-cn was not produced by luci.mk; assembling it manually..."
+            mkdir -p /tmp/i18n/usr/lib/lua/luci/i18n /tmp/i18n/etc/uci-defaults /tmp/i18n/CONTROL "$GITHUB_WORKSPACE/out"
+            openwrt/staging_dir/host/bin/po2lmo \
+              openwrt/package/luci-app-oaf/po/zh_Hans/oaf.po \
+              /tmp/i18n/usr/lib/lua/luci/i18n/oaf.zh-cn.lmo
+            printf 'uci set luci.languages.zh_cn="简体中文 (Simplified Chinese)"; uci commit luci\n' \
+              > /tmp/i18n/etc/uci-defaults/luci-i18n-oaf-zh-cn
+            chmod 0755 /tmp/i18n/etc/uci-defaults/luci-i18n-oaf-zh-cn
+            cat > /tmp/i18n/CONTROL/control <<'CTRL'
+Package: luci-i18n-oaf-zh-cn
+Version: 7.0-r1
+Depends: luci-app-oaf
+Architecture: all
+Maintainer: OpenAppFilter build
+Section: luci
+Priority: optional
+Description: Translation for luci-app-oaf - Simplified Chinese
+CTRL
+            cd openwrt && staging_dir/host/bin/fakeroot staging_dir/host/bin/bash \
+              scripts/ipkg-build -m "" /tmp/i18n "$GITHUB_WORKSPACE/out"
+            echo "--- manually built i18n ipk ---"
+            ls -la "$GITHUB_WORKSPACE/out/"
+          fi
+
       - name: Collect ipk packages (from bin/packages AND bin/targets)
         run: |
           mkdir -p out
