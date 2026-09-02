@@ -1,0 +1,87 @@
+# ============================================================
+# Build OpenAppFilter (OAF) v7.0.1 for OpenWrt 24.10-SNAPSHOT
+# Target : mediatek/filogic (MT7981/MT7986), aarch64_cortex-a53
+# Kernel : 6.6.133  (匹配用户固件 uname -r = 6.6.133)
+# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支，
+#           该提交 include/kernel-6.6 定义为 6.6.133）
+#
+# 为什么全源码构建：没有任何官方 SDK/发布版的内核恰好是 6.6.133
+# （官方 24.10-SNAPSHOT SDK = 6.6.151，24.10.x 点版本也都不匹配）。
+# 官方内核 CONFIG_MODVERSIONS 未开启 → 模块只要 vermagic 匹配即可加载，
+# 因此用官方 6.6.133 内核源码构建的 kmod-oaf 可直接用于该固件。
+# ============================================================
+name: Build OAF for OpenWrt 24.10 (kernel 6.6.133) mediatek/filogic
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-oaf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison gawk gettext git \
+            libncurses-dev libssl-dev python3 python3-setuptools rsync swig unzip \
+            zlib1g-dev file wget curl zstd time
+
+      - name: Checkout OpenWrt 24.10 branch at kernel 6.6.133 commit (2b9f01bebcbe)
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/openwrt
+          ref: 2b9f01bebcbe
+          path: openwrt
+          fetch-depth: 1
+
+      - name: Add OpenAppFilter v7.0.1 packages
+        run: |
+          git clone --depth 1 --branch v7.0.1 https://github.com/destan19/OpenAppFilter.git /tmp/OpenAppFilter
+          cp -r /tmp/OpenAppFilter/oaf             openwrt/package/oaf
+          cp -r /tmp/OpenAppFilter/open-app-filter openwrt/package/open-app-filter
+          cp -r /tmp/OpenAppFilter/luci-app-oaf    openwrt/package/luci-app-oaf
+
+      - name: Update and install feeds (luci pinned to openwrt-24.10)
+        run: |
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Select mediatek/filogic target and enable OAF
+        run: |
+          cd openwrt
+          echo "CONFIG_TARGET_mediatek=y" >> .config
+          echo "CONFIG_TARGET_mediatek_filogic=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-ipt-conntrack=y" >> .config
+          make defconfig
+
+      - name: Verify kernel version and target
+        run: |
+          cd openwrt
+          echo "Kernel: $(grep 'LINUX_VERSION-6.6' include/kernel-6.6)"
+          echo "Target: mediatek/filogic (aarch64_cortex-a53)"
+
+      - name: Compile (toolchain + kernel prepare + kmod-oaf + appfilter + luci-app-oaf)
+        run: |
+          cd openwrt
+          make -j$(nproc) package/luci-app-oaf/compile V=s
+
+      - name: Collect ipk packages
+        run: |
+          mkdir -p out
+          cp -f openwrt/bin/packages/*/*/kmod-oaf*.ipk        out/ 2>/dev/null || true
+          cp -f openwrt/bin/packages/*/*/kmod-ipt-conntrack*.ipk out/ 2>/dev/null || true
+          cp -f openwrt/bin/packages/*/*/appfilter*.ipk       out/ 2>/dev/null || true
+          cp -f openwrt/bin/packages/*/*/luci-app-oaf*.ipk    out/ 2>/dev/null || true
+          cp -f openwrt/bin/packages/*/*/luci-i18n-oaf*.ipk   out/ 2>/dev/null || true
+          echo "=== artifacts ==="
+          find out -type f | sort
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: oaf-ipk-mediatek-filogic-kernel-6.6.133
+          path: out/
+          if-no-files-found: error
