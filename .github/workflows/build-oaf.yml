@@ -106,21 +106,27 @@ jobs:
           cd openwrt
           make -j$(nproc) target/linux/compile V=s
 
-      - name: Compile OAF packages (kmod-oaf + appfilter + luci-app-oaf)
+      - name: Compile OAF packages (kmod-oaf + appfilter + luci-app-oaf + i18n)
         run: |
           cd openwrt
           make -j$(nproc) package/luci-app-oaf/compile V=s
+          # i18n 子包应随主包一起产出；若缺失则单独补编一次
+          if ! find bin -name 'luci-i18n-oaf*.ipk' | grep -q .; then
+            echo "luci-i18n not built with the app, trying standalone compile..."
+            make -j$(nproc) package/luci-i18n-oaf-zh-cn/compile V=s || echo "(standalone i18n target not available)"
+          fi
+          echo "=== ALL ipk files under bin/ ==="
+          find bin -name '*.ipk' | sort
 
-      - name: Collect ipk packages
+      - name: Collect ipk packages (from bin/packages AND bin/targets)
         run: |
           mkdir -p out
-          cp -f openwrt/bin/packages/*/*/kmod-oaf*.ipk        out/ 2>/dev/null || true
-          cp -f openwrt/bin/packages/*/*/kmod-ipt-conntrack*.ipk out/ 2>/dev/null || true
-          cp -f openwrt/bin/packages/*/*/appfilter*.ipk       out/ 2>/dev/null || true
-          cp -f openwrt/bin/packages/*/*/luci-app-oaf*.ipk    out/ 2>/dev/null || true
-          cp -f openwrt/bin/packages/*/*/luci-i18n-oaf*.ipk   out/ 2>/dev/null || true
-          echo "=== artifacts ==="
-          find out -type f | sort
+          find openwrt/bin -type f -name '*.ipk' \( \
+            -name 'kmod-oaf*.ipk' -o -name 'kmod-ipt-conntrack*.ipk' -o \
+            -name 'appfilter*.ipk' -o -name 'luci-app-oaf*.ipk' -o \
+            -name 'luci-i18n-oaf*.ipk' \) -exec cp -f {} out/ \;
+          echo "=== OAF artifacts collected ==="
+          ls -la out/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
