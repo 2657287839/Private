@@ -94,8 +94,13 @@ jobs:
             echo "luci-i18n-oaf-zh-cn already built by luci.mk."
           else
             echo "Assembling luci-i18n-oaf-zh-cn manually..."
+            PO2LMO="$(ls openwrt/staging_dir/hostpkg/bin/po2lmo openwrt/staging_dir/host/bin/po2lmo 2>/dev/null | head -n 1)"
+            if [ -z "$PO2LMO" ]; then
+              echo "ERROR: po2lmo tool not found under staging_dir"
+              exit 1
+            fi
             mkdir -p /tmp/i18n/usr/lib/lua/luci/i18n /tmp/i18n/etc/uci-defaults /tmp/i18n/CONTROL "$GITHUB_WORKSPACE/out"
-            openwrt/staging_dir/host/bin/po2lmo openwrt/package/luci-app-oaf/po/zh_Hans/oaf.po /tmp/i18n/usr/lib/lua/luci/i18n/oaf.zh-cn.lmo
+            "$PO2LMO" openwrt/package/luci-app-oaf/po/zh_Hans/oaf.po /tmp/i18n/usr/lib/lua/luci/i18n/oaf.zh-cn.lmo
             printf 'uci set luci.languages.zh_cn="简体中文 (Simplified Chinese)"; uci commit luci\n' > /tmp/i18n/etc/uci-defaults/luci-i18n-oaf-zh-cn
             chmod 0755 /tmp/i18n/etc/uci-defaults/luci-i18n-oaf-zh-cn
             printf 'Package: luci-i18n-oaf-zh-cn\nVersion: 7.0-r1\nDepends: luci-app-oaf\nArchitecture: all\nMaintainer: OpenAppFilter build\nSection: luci\nPriority: optional\nDescription: Translation for luci-app-oaf - Simplified Chinese\n' > /tmp/i18n/CONTROL/control
