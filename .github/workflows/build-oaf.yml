@@ -34,12 +34,11 @@ jobs:
           path: openwrt
           fetch-depth: 1
 
-      - name: Add OpenAppFilter v7.0.1 packages
+           - name: Get OpenWrt 24.10 source at kernel 6.6.133 commit (2b9f01bebcbe)
         run: |
-          git clone --depth 1 --branch v7.0.1 https://github.com/destan19/OpenAppFilter.git /tmp/OpenAppFilter
-          cp -r /tmp/OpenAppFilter/oaf             openwrt/package/oaf
-          cp -r /tmp/OpenAppFilter/open-app-filter openwrt/package/open-app-filter
-          cp -r /tmp/OpenAppFilter/luci-app-oaf    openwrt/package/luci-app-oaf
+          curl -fL -o openwrt-src.tar.gz https://codeload.github.com/openwrt/openwrt/tar.gz/2b9f01bebcbe
+          mkdir -p openwrt
+          tar -xzf openwrt-src.tar.gz -C openwrt --strip-components=1
 
       - name: Update and install feeds (luci pinned to openwrt-24.10)
         run: |
