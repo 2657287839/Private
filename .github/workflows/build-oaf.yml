@@ -60,8 +60,22 @@ jobs:
           cd openwrt
           echo "Kernel: $(grep 'LINUX_VERSION-6.6' include/kernel-6.6)"
           echo "Target: mediatek/filogic (aarch64_cortex-a53)"
+          echo "--- runner resources ---"
+          nproc
+          free -h
+          df -h /home/runner/work
 
-      - name: Compile (toolchain + kernel prepare + kmod-oaf + appfilter + luci-app-oaf)
+      - name: Build host tools (staged, avoids parallel-build races)
+        run: |
+          cd openwrt
+          make -j$(nproc) tools/install V=s
+
+      - name: Build cross toolchain (staged)
+        run: |
+          cd openwrt
+          make -j$(nproc) toolchain/install V=s
+
+      - name: Compile OAF packages (kernel prepare + kmod-oaf + appfilter + luci-app-oaf)
         run: |
           cd openwrt
           make -j$(nproc) package/luci-app-oaf/compile V=s
