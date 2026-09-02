@@ -26,19 +26,18 @@ jobs:
             libncurses-dev libssl-dev python3 python3-setuptools rsync swig unzip \
             zlib1g-dev file wget curl zstd time
 
-      - name: Checkout OpenWrt 24.10 branch at kernel 6.6.133 commit (2b9f01bebcbe)
-        uses: actions/checkout@v4
-        with:
-          repository: openwrt/openwrt
-          ref: 2b9f01bebcbe
-          path: openwrt
-          fetch-depth: 1
-
-           - name: Get OpenWrt 24.10 source at kernel 6.6.133 commit (2b9f01bebcbe)
+      - name: Get OpenWrt 24.10 source at kernel 6.6.133 commit (2b9f01bebcbe)
         run: |
           curl -fL -o openwrt-src.tar.gz https://codeload.github.com/openwrt/openwrt/tar.gz/2b9f01bebcbe
           mkdir -p openwrt
           tar -xzf openwrt-src.tar.gz -C openwrt --strip-components=1
+
+      - name: Add OpenAppFilter v7.0.1 packages
+        run: |
+          git clone --depth 1 --branch v7.0.1 https://github.com/destan19/OpenAppFilter.git /tmp/OpenAppFilter
+          cp -r /tmp/OpenAppFilter/oaf             openwrt/package/oaf
+          cp -r /tmp/OpenAppFilter/open-app-filter openwrt/package/open-app-filter
+          cp -r /tmp/OpenAppFilter/luci-app-oaf    openwrt/package/luci-app-oaf
 
       - name: Update and install feeds (luci pinned to openwrt-24.10)
         run: |
