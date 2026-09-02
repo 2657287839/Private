@@ -2,13 +2,7 @@
 # Build OpenAppFilter (OAF) v7.0.1 for OpenWrt 24.10-SNAPSHOT
 # Target : mediatek/filogic (MT7981/MT7986), aarch64_cortex-a53
 # Kernel : 6.6.133  (匹配用户固件 uname -r = 6.6.133)
-# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支，
-#           该提交 include/kernel-6.6 定义为 6.6.133）
-#
-# 为什么全源码构建：没有任何官方 SDK/发布版的内核恰好是 6.6.133
-# （官方 24.10-SNAPSHOT SDK = 6.6.151，24.10.x 点版本也都不匹配）。
-# 官方内核 CONFIG_MODVERSIONS 未开启 → 模块只要 vermagic 匹配即可加载，
-# 因此用官方 6.6.133 内核源码构建的 kmod-oaf 可直接用于该固件。
+# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支）
 # ============================================================
 name: Build OAF for OpenWrt 24.10 (kernel 6.6.133) mediatek/filogic
 
@@ -18,6 +12,7 @@ on:
 jobs:
   build-oaf:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     steps:
       - name: Install host build dependencies
         run: |
@@ -65,7 +60,7 @@ jobs:
           free -h
           df -h /home/runner/work
 
-      - name: Build host tools (staged, avoids parallel-build races)
+      - name: Build host tools (staged)
         run: |
           cd openwrt
           make -j$(nproc) tools/install V=s
@@ -75,7 +70,12 @@ jobs:
           cd openwrt
           make -j$(nproc) toolchain/install V=s
 
-      - name: Compile OAF packages (kernel prepare + kmod-oaf + appfilter + luci-app-oaf)
+      - name: Build kernel linux-6.6.133 (creates required .config)
+        run: |
+          cd openwrt
+          make -j$(nproc) target/linux/compile V=s
+
+      - name: Compile OAF packages (kmod-oaf + appfilter + luci-app-oaf)
         run: |
           cd openwrt
           make -j$(nproc) package/luci-app-oaf/compile V=s
