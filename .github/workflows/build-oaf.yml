@@ -2,7 +2,12 @@
 # Build OpenAppFilter (OAF) v7.0.1 for OpenWrt 24.10-SNAPSHOT
 # Target : mediatek/filogic (MT7981/MT7986), aarch64_cortex-a53
 # Kernel : 6.6.133  (匹配用户固件 uname -r = 6.6.133)
-# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支）
+# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支，
+#           该提交 include/kernel-6.6 定义为 6.6.133）
+#
+# 构建顺序（官方推荐分阶段，避免并行竞态）：
+#   tools/install -> toolchain/install -> target/linux/compile（生成内核 .config）
+#   -> package/luci-app-oaf/compile（kmod-oaf + appfilter + luci-app-oaf）
 # ============================================================
 name: Build OAF for OpenWrt 24.10 (kernel 6.6.133) mediatek/filogic
 
@@ -33,6 +38,32 @@ jobs:
           cp -r /tmp/OpenAppFilter/oaf             openwrt/package/oaf
           cp -r /tmp/OpenAppFilter/open-app-filter openwrt/package/open-app-filter
           cp -r /tmp/OpenAppFilter/luci-app-oaf    openwrt/package/luci-app-oaf
+
+      - name: Patch missing zh-cn translations (100% Chinese UI)
+        run: |
+          PO=openwrt/package/luci-app-oaf/po/zh_Hans/oaf.po
+          cat >> "$PO" <<'POEOF'
+
+          msgid "Download"
+          msgstr "下载"
+
+          msgid "Add to whitelist"
+          msgstr "加入白名单"
+
+          msgid "Manual mode"
+          msgstr "手动模式"
+
+          msgid "Add user"
+          msgstr "添加用户"
+
+          msgid "Select device"
+          msgstr "选择设备"
+
+          msgid "The user's basic data and real-time data are stored in this directory, such as online duration, traffic usage and other information. The default is a temporary directory and will not be retained after reboot. You can change it to a persistent directory, such as /etc/fwx."
+          msgstr "用户的实时与基础数据（如在线时长、流量使用等）存储在该目录中。默认为临时目录，重启后不保留；可改为持久目录，例如 /etc/fwx。"
+          POEOF
+          sed -i 's/List Mode/列表模式/g; s/Card Mode/卡片模式/g' openwrt/package/luci-app-oaf/luasrc/view/oaf/user_status.htm
+          echo "--- po now has $(grep -c '^msgid' "$PO") msgids; patched user_status.htm ---"
 
       - name: Update and install feeds (luci pinned to openwrt-24.10)
         run: |
