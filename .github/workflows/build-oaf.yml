@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install host build dependencies
         run: |
           sudo apt-get update
@@ -44,7 +46,7 @@ jobs:
           # 2) JS 硬编码中文化
           sed -i 's/List Mode/列表模式/g; s/Card Mode/卡片模式/g' openwrt/package/luci-app-oaf/luasrc/view/oaf/user_status.htm
           # 3) 关键：init 脚本用 insmod 加载模块（绕开某些固件 busybox modprobe 对 oaf.ko 的段错误）
-          sed -i 's#modprobe oaf#insmod /lib/modules/$(uname -r)/oaf.ko 2>/dev/null || modprobe oaf#' openwrt/package/open-app-filter/files/appfilter.init
+          sed -i 's#modprobe oaf#insmod /lib/modules/$(uname -r)/nf_reject_ipv4.ko 2>/dev/null; insmod /lib/modules/$(uname -r)/oaf.ko#' openwrt/package/open-app-filter/files/appfilter.init
           echo "--- appfilter.init load line ---"
           grep -n 'insmod\|modprobe oaf' openwrt/package/open-app-filter/files/appfilter.init
           # 4) 若仓库根目录有 feature.bin（中文特征库）→ 内嵌为默认
