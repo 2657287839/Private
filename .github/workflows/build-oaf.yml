@@ -1,14 +1,3 @@
-# ============================================================
-# Build OpenAppFilter (OAF) v7.0.1 for OpenWrt 24.10-SNAPSHOT
-# Target : mediatek/filogic (MT7981/MT7986), aarch64_cortex-a53
-# Kernel : 6.6.133  (匹配用户固件 uname -r = 6.6.133)
-# 构建基础: openwrt/openwrt 提交 2b9f01bebcbe（openwrt-24.10 分支）
-# 本版改进:
-#   1) appfilter.init 用 insmod 加载 oaf.ko（绕开 Thirst 固件 busybox
-#      modprobe 对 oaf.ko 的段错误）
-#   2) 若仓库根目录提供 feature.bin，编译时内嵌为默认中文特征库
-#   3) 100% 中文 UI（po 补丁）+ luci-i18n-oaf-zh-cn 保底生成
-# ============================================================
 name: Build OAF for OpenWrt 24.10 (kernel 6.6.133) mediatek/filogic
 
 on:
@@ -41,15 +30,11 @@ jobs:
 
       - name: Patch zh-cn translations, init module loading, optional Chinese feature library
         run: |
-          # 1) 补全 po 缺失翻译（100% 中文 UI）
           echo 'Cgptc2dpZCAiRG93bmxvYWQiCm1zZ3N0ciAi5LiL6L29IgoKbXNnaWQgIkFkZCB0byB3aGl0ZWxpc3QiCm1zZ3N0ciAi5Yqg5YWl55m95ZCN5Y2VIgoKbXNnaWQgIk1hbnVhbCBtb2RlIgptc2dzdHIgIuaJi+WKqOaooeW8jyIKCm1zZ2lkICJBZGQgdXNlciIKbXNnc3RyICLmt7vliqDnlKjmiLciCgptc2dpZCAiU2VsZWN0IGRldmljZSIKbXNnc3RyICLpgInmi6norr7lpIciCgptc2dpZCAiVGhlIHVzZXIncyBiYXNpYyBkYXRhIGFuZCByZWFsLXRpbWUgZGF0YSBhcmUgc3RvcmVkIGluIHRoaXMgZGlyZWN0b3J5LCBzdWNoIGFzIG9ubGluZSBkdXJhdGlvbiwgdHJhZmZpYyB1c2FnZSBhbmQgb3RoZXIgaW5mb3JtYXRpb24uIFRoZSBkZWZhdWx0IGlzIGEgdGVtcG9yYXJ5IGRpcmVjdG9yeSBhbmQgd2lsbCBub3QgYmUgcmV0YWluZWQgYWZ0ZXIgcmVib290LiBZb3UgY2FuIGNoYW5nZSBpdCB0byBhIHBlcnNpc3RlbnQgZGlyZWN0b3J5LCBzdWNoIGFzIC9ldGMvZnd4LiIKbXNnc3RyICLnlKjmiLfnmoTlrp7ml7bkuI7ln7rnoYDmlbDmja7vvIjlpoLlnKjnur/ml7bplb/jgIHmtYHph4/kvb/nlKjnrYnvvInlrZjlgqjlnKjor6Xnm67lvZXkuK3jgILpu5jorqTkuLrkuLTml7bnm67lvZXvvIzph43lkK/lkI7kuI3kv53nlZnvvJvlj6/mlLnkuLrmjIHkuYXnm67lvZXvvIzkvovlpoIgL2V0Yy9md3jjgIIi' | base64 -d >> openwrt/package/luci-app-oaf/po/zh_Hans/oaf.po
-          # 2) JS 硬编码中文化
           sed -i 's/List Mode/列表模式/g; s/Card Mode/卡片模式/g' openwrt/package/luci-app-oaf/luasrc/view/oaf/user_status.htm
-          # 3) 关键：init 脚本用 insmod 加载模块（绕开某些固件 busybox modprobe 对 oaf.ko 的段错误）
           sed -i 's#modprobe oaf#insmod /lib/modules/$(uname -r)/nf_reject_ipv4.ko 2>/dev/null; insmod /lib/modules/$(uname -r)/oaf.ko#' openwrt/package/open-app-filter/files/appfilter.init
           echo "--- appfilter.init load line ---"
           grep -n 'insmod\|modprobe oaf' openwrt/package/open-app-filter/files/appfilter.init
-          # 4) 若仓库根目录有 feature.bin（中文特征库）→ 内嵌为默认
           if [ -f feature.bin ]; then
             cp -f feature.bin openwrt/package/open-app-filter/files/feature.bin
             echo "Chinese feature.bin baked in: $(ls -la openwrt/package/open-app-filter/files/feature.bin | awk '{print $5}') bytes"
@@ -145,3 +130,23 @@ jobs:
           name: oaf-ipk-mediatek-filogic-kernel-6.6.133
           path: out/
           if-no-files-found: error
+
+      - name: Prepare fixed-name ipks for release
+        run: |
+          mkdir -p release
+          cd out
+          cp -f kmod-oaf_*.ipk ../release/kmod-oaf.ipk
+          cp -f kmod-ipt-conntrack_*.ipk ../release/kmod-ipt-conntrack.ipk
+          cp -f appfilter_*.ipk ../release/appfilter.ipk
+          cp -f luci-app-oaf_*.ipk ../release/luci-app-oaf.ipk
+          cp -f luci-i18n-oaf-zh-cn_*.ipk ../release/luci-i18n-oaf-zh-cn.ipk
+          ls -la ../release/
+
+      - name: Publish to GitHub Release (fixed names)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete oaf-6.6.133 --repo ${{ github.repository }} --yes 2>/dev/null || true
+          gh release create oaf-6.6.133 release/*.ipk --repo ${{ github.repository }} \
+            --title "OAF latest (kernel 6.6.133)" \
+            --notes "自动发布最新 OAF ipk，路由器一键下载安装"
